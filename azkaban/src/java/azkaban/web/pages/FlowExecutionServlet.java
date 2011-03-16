@@ -278,20 +278,30 @@ public class FlowExecutionServlet extends AbstractAzkabanServlet {
     }
     
     private void traverseFlow(HashSet<String> disabledJobs, ExecutableFlow flow) {
-    	if (disabledJobs.contains(flow.getName())) {
-            switch (flow.getStatus()) {
-                case READY:
-                case FAILED:
-                    flow.markCompleted();
-            }
-        }
-        else {
-            if (flow.getStatus() == Status.FAILED) {
-                flow.reset();
-            }
-            for (ExecutableFlow executableFlow : flow.getChildren()) {
-                traverseFlow(disabledJobs, executableFlow);
-            }
-        }
+    	String name = flow.getName();
+		System.out.println("at " + name);
+    	flow.reset();
+    	if (flow instanceof IndividualJobExecutableFlow && disabledJobs.contains(name)) {
+    		IndividualJobExecutableFlow individualJob = (IndividualJobExecutableFlow)flow;
+    		individualJob.setStatus(Status.IGNORED);
+    		System.out.println("ignore " + name);
+    	}
+    	else {
+    		if (flow instanceof ComposedExecutableFlow) {
+        		ExecutableFlow innerFlow = ((ComposedExecutableFlow) flow).getDepender();
+        		traverseFlow(disabledJobs, innerFlow);
+    		}
+    		else if (flow instanceof MultipleDependencyExecutableFlow) {
+        		traverseFlow(disabledJobs, ((MultipleDependencyExecutableFlow) flow).getActualFlow());
+    		}
+    		else if (flow instanceof WrappingExecutableFlow) {
+        		traverseFlow(disabledJobs, ((WrappingExecutableFlow) flow).getDelegateFlow());
+    		}
+
+    		for(ExecutableFlow childFlow : flow.getChildren()) {
+    			traverseFlow(disabledJobs, childFlow);
+    		}
+    	}
+
     }
 }

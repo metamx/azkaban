@@ -62,7 +62,7 @@ public class JobRunnerServlet extends AbstractAzkabanServlet
             }
         }
 
-        getApplication().getScheduler().scheduleNow(
+        getApplication().getJobExecutorManager().execute(
                 new FlowExecutionHolder(
                         flowToRun,
                         parentProps
