@@ -18,6 +18,7 @@ package azkaban.jobs;
 
 import azkaban.app.JobManager;
 import azkaban.app.JobWrappingFactory;
+import azkaban.app.PropsUtils;
 import azkaban.common.jobs.Job;
 import azkaban.common.utils.Props;
 import azkaban.common.utils.Utils;
@@ -170,7 +171,7 @@ public class CommandLineJobRunner {
 
 
                 flowToRun.execute(
-                        overrideProps,
+                        new Props(PropsUtils.produceParentProperties(flowToRun), overrideProps),
                         new FlowCallback()
                         {
                             @Override

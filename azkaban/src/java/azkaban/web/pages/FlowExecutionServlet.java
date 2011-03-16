@@ -16,7 +16,6 @@
 
 package azkaban.web.pages;
 
-import azkaban.app.PropsUtils;
 import azkaban.common.utils.Props;
 import azkaban.common.web.Page;
 import azkaban.flow.ComposedExecutableFlow;
@@ -39,7 +38,6 @@ import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
-import org.apache.hadoop.fs.Path;
 import org.joda.time.DateTime;
 import org.joda.time.Duration;
 import org.json.simple.JSONArray;

@@ -69,7 +69,7 @@ public class LatestExpansionFunction implements Function<String, String>
                     {
                         public int compare(FileStatus o1, FileStatus o2)
                         {
-                            return o1.getPath().getName().compareTo(o2.getPath().getName());
+                            return - o1.getPath().getName().compareTo(o2.getPath().getName());
                         }
                     }
             );
