@@ -96,17 +96,17 @@ public class ProcessJob extends AbstractProcessJob implements Job {
             } catch(InterruptedException e) {
             }
 
-            _isComplete = true;
-            if(exitCode != 0) {
-                for (File file: propFiles)   if (file != null && file.exists()) file.delete();
-                throw new RuntimeException("Processes ended with exit code " + exitCode + ".");
-            }
-
             // try to wait for everything to get logged out before exiting
             try {
                 outputGobbler.join(1000);
                 errorGobbler.join(1000);
             } catch(InterruptedException e) {
+            }
+
+            _isComplete = true;
+            if(exitCode != 0) {
+                for (File file: propFiles)   if (file != null && file.exists()) file.delete();
+                throw new RuntimeException("Processes ended with exit code " + exitCode + ".");
             }
         }
         
@@ -193,8 +193,10 @@ public class ProcessJob extends AbstractProcessJob implements Job {
             try {
                 while(!Thread.currentThread().isInterrupted()) {
                     String line = _inputReader.readLine();
-                    if(line == null)
+                    if(line == null) {
+                        _inputReader.close();
                         return;
+                    }
 
                     logMessage(line);
                 }
