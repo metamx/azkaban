@@ -213,6 +213,8 @@ public class JobExecutorManager {
                                 List<String> emailList) {
         if((emailList == null || emailList.isEmpty()) && jobFailureEmail != null)
             emailList = Arrays.asList(jobFailureEmail);
+        logger.info(String.format("Sending failure email for job[%s] from [%s] to [%s]", job.getId(), senderAddress, emailList));
+
 
         if(emailList != null && mailman != null) {
             try {
@@ -288,6 +290,7 @@ public class JobExecutorManager {
         if((emailList == null || emailList.isEmpty()) && jobSuccessEmail != null) {
             emailList = Arrays.asList(jobSuccessEmail);
         }
+        logger.info(String.format("Sending success email for job[%s] from [%s] to [%s]", job.getId(), senderAddress, emailList));
 
         if(emailList != null && mailman != null) {
             try {
@@ -416,6 +419,9 @@ public class JobExecutorManager {
                                                 senderEmail,
                                                 finalEmailList
                                         );
+                                    }
+                                    else {
+                                        logger.info("Skipping success email for job " + runningJob.getId());
                                     }
                                     break;
                                 case FAILED:
