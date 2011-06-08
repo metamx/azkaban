@@ -109,13 +109,11 @@ public class JavaJobRunnerMain {
                 outputGeneratedProperties(outputGendProps);
             } catch (NoSuchMethodException e) {
                 _logger.info(
-                        String.format(
-                                "Apparently there isn't a method[%s] on object[%s], using empty Props object instead.",
+                        String.format("Apparently there isn't a method[%s] on object[%s], skipping.",
                                 GET_GENERATED_PROPERTIES_METHOD,
                                 _javaObject
                         )
                 );
-                outputGeneratedProperties(new Props());
             }
         } catch (Exception e) {
             _isFinished = true;
