@@ -21,6 +21,8 @@ import java.util.List;
 import java.util.StringTokenizer;
 
 import azkaban.app.JobDescriptor;
+import azkaban.common.utils.Props;
+
 public class JavaJob extends JavaProcessJob {
 
 	public static final String RUN_METHOD_PARAM = "method.run";
@@ -48,6 +50,7 @@ public class JavaJob extends JavaProcessJob {
         List<String> classPath = super.getClassPaths();
         
         classPath.add(getSourcePathFromClass(JavaJobRunnerMain.class));
+        classPath.add(getSourcePathFromClass(Props.class));
         String loggerPath = getSourcePathFromClass(org.apache.log4j.Logger.class);
         if (!classPath.contains(loggerPath)) {
             classPath.add(loggerPath);
