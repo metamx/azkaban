@@ -387,9 +387,6 @@ public class JobExecutorManager {
             try {
                 final JobDescriptor jobDescriptor = jobManager.getJobDescriptor(flow.getName());
 
-                emailList = jobDescriptor.getEmailNotificationList();
-                final List<String> finalEmailList = emailList;
-
                 senderAddress = jobDescriptor.getSenderEmail();
                 final String senderEmail = senderAddress;
 
@@ -417,7 +414,7 @@ public class JobExecutorManager {
                                                 runningJob,
                                                 runningJob.getExecutionDuration(),
                                                 senderEmail,
-                                                finalEmailList
+                                                jobDescriptor.getSuccessEmailList()
                                         );
                                     }
                                     else {
@@ -428,14 +425,14 @@ public class JobExecutorManager {
                                     sendErrorEmail(runningJob,
                                                    flow.getExceptions(),
                                                    senderEmail,
-                                                   finalEmailList);
+                                                   jobDescriptor.getFailureEmailList());
                                     break;
                                 default:
                                     sendErrorEmail(runningJob,
                                                    new RuntimeException(String.format("Got an unknown status[%s]",
                                                                                       status)),
                                                    senderEmail,
-                                                   finalEmailList);
+                                                   jobDescriptor.getFailureEmailList());
                             }
                         } catch(RuntimeException e) {
                             logger.warn("Exception caught while saving flow/sending emails", e);

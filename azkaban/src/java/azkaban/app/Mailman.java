@@ -16,12 +16,15 @@
 
 package azkaban.app;
 
+import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.Properties;
 
+import javax.mail.Authenticator;
 import javax.mail.Message;
 import javax.mail.MessagingException;
+import javax.mail.PasswordAuthentication;
 import javax.mail.Session;
 import javax.mail.Transport;
 import javax.mail.internet.AddressException;
@@ -29,6 +32,7 @@ import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeMessage;
 
 import org.apache.log4j.Logger;
+import org.joda.time.DateTime;
 
 /**
  * The mailman send you mail, if you ask him
@@ -43,24 +47,53 @@ public class Mailman {
     private final String _mailHost;
     private final String _mailUser;
     private final String _mailPassword;
+    private final String _port;
+    private final boolean _useTls;
 
-    public Mailman(String mailHost, String mailUser, String mailPassword) {
+  public Mailman(String mailHost, String mailUser, String mailPassword, String port, boolean useTls) {
         this._mailHost = mailHost;
         this._mailUser = mailUser;
         this._mailPassword = mailPassword;
-    }
+        this._port = port;
+        this._useTls = useTls;
+  }
 
     public void sendEmail(String fromAddress, List<String> toAddress, String subject, String body)
             throws MessagingException {
         Properties props = new Properties();
-        props.setProperty("mail.transport.protocol", "smtp");
-        props.put("mail.host", _mailHost);
-        props.put("mail.user", _mailUser);
-        props.put("mail.password", _mailPassword);
+        props.setProperty("mail.host", _mailHost);
+        props.setProperty("mail.smtp.socketFactory.port", _port);
 
-        Session session = Session.getDefaultInstance(props);
+        Session session;
+        if (_useTls) {
+            props.setProperty("mail.smtp.starttls.enable", "true");
+            props.setProperty("mail.smtp.auth", "true");
+            props.setProperty("mail.smtp.ssl.trust", "*");
+            props.setProperty("mail.smtp.socketFactory.fallback", "false");
+
+            session = Session.getInstance(
+                props,
+                new Authenticator()
+                {
+                  @Override
+                  protected PasswordAuthentication getPasswordAuthentication()
+                  {
+                    return new PasswordAuthentication(
+                        _mailUser,
+                        _mailPassword
+                    );
+                  }
+                }
+            );
+        }
+        else {
+            props.setProperty("mail.user", _mailUser);
+            props.setProperty("mail.password", _mailPassword);
+            session = Session.getDefaultInstance(props);
+        }
+
         Message message = new MimeMessage(session);
-        InternetAddress from = new InternetAddress(fromAddress == null? "dolores.umbridge@azkaban.com" : fromAddress, false);
+        InternetAddress from = new InternetAddress(fromAddress == null ? "" : fromAddress, false);
         message.setFrom(from);
         for(String toAddr: toAddress)
             message.addRecipient(Message.RecipientType.TO, new InternetAddress(toAddr, false));
@@ -82,5 +115,4 @@ public class Mailman {
             logger.warn("Error while sending email: " + e.getMessage());
         }
     }
-
 }

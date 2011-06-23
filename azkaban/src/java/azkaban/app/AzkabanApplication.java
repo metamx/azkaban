@@ -145,7 +145,10 @@ public class AzkabanApplication
 
         _mailer = new Mailman(defaultProps.getString("mail.host", "localhost"),
                               defaultProps.getString("mail.user", ""),
-                              defaultProps.getString("mail.password", ""));
+                              defaultProps.getString("mail.password", ""),
+                              defaultProps.getString("mail.port", "25"),
+                              defaultProps.getBoolean("mail.useTls", false)
+        );
 
         String failureEmail = defaultProps.getString("job.failure.email", null);
         String successEmail = defaultProps.getString("job.success.email", null);

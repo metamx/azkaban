@@ -16,6 +16,7 @@
 
 package azkaban.app;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -49,6 +50,8 @@ public class JobDescriptor {
     public static final String LOGGER_PATTERN = "logger.pattern";
     public static final String MAIL_SENDER = "mail.sender";
     public static final String SEND_SUCCESS_EMAIL = "azkaban.send.success.email";
+    public static final String SUCCESS_EMAIL_LIST = "notify.emails.success";
+    public static final String FAILURE_EMAIL_LIST = "notify.emails.failure";
 
     public static final Comparator<JobDescriptor> NAME_COMPARATOR = new Comparator<JobDescriptor>() {
 
@@ -71,6 +74,8 @@ public class JobDescriptor {
     private final List<String> _writeResourceLocks;
     private final String _sourceEmailList;
     private final List<String> _emailList;
+    private final List<String> _successEmailList;
+    private final List<String> _failureEmailList;
     private final String _jobType;
     private final String _loggerPattern;
 
@@ -107,6 +112,22 @@ public class JobDescriptor {
         Collections.sort(this._writeResourceLocks);
 
         this._emailList = props.getStringList(NOTIFY_EMAIL);
+
+        String successEmailListProp = props.get(SUCCESS_EMAIL_LIST);
+        if (successEmailListProp == null) {
+          _successEmailList = _emailList;
+        }
+        else {
+          _successEmailList = Arrays.asList(successEmailListProp.split(","));
+        }
+
+        String failureEmailListProp = props.get(FAILURE_EMAIL_LIST);
+        if (failureEmailListProp == null) {
+          _failureEmailList = _emailList;
+        }
+        else {
+          _failureEmailList = Arrays.asList(failureEmailListProp.split(","));
+        }
     }
 
     /**
@@ -194,11 +215,21 @@ public class JobDescriptor {
         return _sourceEmailList;
     }
 
-	public String getLoggerPattern() {
-		return _loggerPattern;
-	}
+  	public String getLoggerPattern() {
+	  	return _loggerPattern;
+	  }
 
     public boolean getSendSuccessEmail() {
         return _props.getBoolean(SEND_SUCCESS_EMAIL, true);
+    }
+
+    public List<String> getSuccessEmailList()
+    {
+      return _successEmailList;
+    }
+
+    public List<String> getFailureEmailList()
+    {
+      return _failureEmailList;
     }
 }
