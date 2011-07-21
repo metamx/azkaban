@@ -21,6 +21,7 @@ import azkaban.common.jobs.Job;
 import azkaban.common.utils.Props;
 import azkaban.jobs.AbstractProcessJob;
 
+import org.apache.commons.io.IOUtils;
 import org.apache.log4j.Level;
 import java.io.BufferedReader;
 import java.io.File;
@@ -77,9 +78,9 @@ public class ProcessJob extends AbstractProcessJob implements Job {
                 for (File file: propFiles)   if (file != null && file.exists()) file.delete();
                 throw new RuntimeException(e);
             }
-            Thread outputGobbler = new LoggingGobbler(new InputStreamReader(_process.getInputStream()),
+            LoggingGobbler outputGobbler = new LoggingGobbler(new InputStreamReader(_process.getInputStream()),
                                                       Level.INFO);
-            Thread errorGobbler = new LoggingGobbler(new InputStreamReader(_process.getErrorStream()),
+            LoggingGobbler errorGobbler = new LoggingGobbler(new InputStreamReader(_process.getErrorStream()),
                                                      Level.ERROR);
 
             int processId = getProcessId();
@@ -98,10 +99,14 @@ public class ProcessJob extends AbstractProcessJob implements Job {
 
             // try to wait for everything to get logged out before exiting
             try {
+                outputGobbler.setDone(true);
+                errorGobbler.setDone(true);
                 outputGobbler.join(1000);
                 errorGobbler.join(1000);
             } catch(InterruptedException e) {
             }
+            IOUtils.closeQuietly(_process.getInputStream());
+            IOUtils.closeQuietly(_process.getErrorStream());
 
             _isComplete = true;
             if(exitCode != 0) {
@@ -182,10 +187,16 @@ public class ProcessJob extends AbstractProcessJob implements Job {
 
         private final BufferedReader _inputReader;
         private final Level _loggingLevel;
+        private volatile boolean done = false;
 
         public LoggingGobbler(InputStreamReader inputReader, Level level) {
             _inputReader = new BufferedReader(inputReader);
             _loggingLevel = level;
+        }
+
+        public void setDone(boolean done)
+        {
+          this.done = done;
         }
 
         @Override
@@ -201,7 +212,9 @@ public class ProcessJob extends AbstractProcessJob implements Job {
                     logMessage(line);
                 }
             } catch(IOException e) {
-                error("Error reading from logging stream:", e);
+                if (! done) {
+                    error("Error reading from logging stream:", e);
+                }
             }
         }
 
