@@ -105,10 +105,8 @@ public class ProcessJob extends AbstractProcessJob implements Job {
                 errorGobbler.join(1000);
             } catch(InterruptedException e) {
             }
-            info("Closing stdin");
-            IOUtils.closeQuietly(_process.getInputStream());
-            info("Closing stderr");
-            IOUtils.closeQuietly(_process.getErrorStream());
+            info("Destroying process");
+            _process.destroy();
 
             _isComplete = true;
             if(exitCode != 0) {
