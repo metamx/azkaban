@@ -105,7 +105,9 @@ public class ProcessJob extends AbstractProcessJob implements Job {
                 errorGobbler.join(1000);
             } catch(InterruptedException e) {
             }
+            info("Closing stdin");
             IOUtils.closeQuietly(_process.getInputStream());
+            info("Closing stderr");
             IOUtils.closeQuietly(_process.getErrorStream());
 
             _isComplete = true;
@@ -215,6 +217,10 @@ public class ProcessJob extends AbstractProcessJob implements Job {
                 if (! done) {
                     error("Error reading from logging stream:", e);
                 }
+                else {
+                    info("Reader was closed.", e);
+                }
+                IOUtils.closeQuietly(_inputReader);
             }
         }
 
