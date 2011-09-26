@@ -43,18 +43,14 @@ public abstract class DelegatingJob implements Job {
     }
 
     @Override
-    public Props getJobGeneratedProperties()
-    {
+    public Props getJobGeneratedProperties() {
         return _innerJob.getJobGeneratedProperties();
     }
 
     public abstract void run() throws Exception;
 
     @Override
-    public String toString()
-    {
-        return getClass().getSimpleName() + "{" +
-               "_innerJob=" + _innerJob +
-               '}';
+    public String toString() {
+        return getClass().getSimpleName() + "{" + "_innerJob=" + _innerJob + '}';
     }
 }

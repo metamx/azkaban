@@ -18,8 +18,6 @@ package azkaban.common.jobs;
 
 import azkaban.common.utils.Props;
 
-
-
 /**
  * This interface defines a Raw Job interface. Each job defines
  * <ul>
@@ -60,9 +58,10 @@ public interface Job {
      * @throws Exception If getting progress fails
      */
     public double getProgress() throws Exception;
-    
+
     /**
      * Get the generated properties from this job.
+     * 
      * @return
      */
     public Props getJobGeneratedProperties();

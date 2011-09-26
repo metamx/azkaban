@@ -35,7 +35,7 @@ public abstract class AbstractJob implements Job {
         _log = log;
         _progress = 0.0;
     }
-    
+
     public String getId() {
         return _id;
     }
@@ -87,11 +87,11 @@ public abstract class AbstractJob implements Job {
     public void error(String message, Throwable t) {
         this._log.error(message, t);
     }
-    
+
     public Props getJobGeneratedProperties() {
         return new Props();
     }
-    
+
     public abstract void run() throws Exception;
 
 }

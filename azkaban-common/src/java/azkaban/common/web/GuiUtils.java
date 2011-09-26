@@ -68,16 +68,14 @@ public class GuiUtils {
                                                                                                   " minutes")
                                                                                     .toFormatter();
 
-    
-    
     public DateTime now() {
-    	return new DateTime();
+        return new DateTime();
     }
-    
+
     public String getShortTimeZone() {
-    	return DateTimeZone.getDefault().getShortName(new DateTime().getMillis());
+        return DateTimeZone.getDefault().getShortName(new DateTime().getMillis());
     }
-    
+
     public String formatDate(DateTime date) {
         return formatDate(date, "MM-dd-yyyy");
     }
@@ -89,7 +87,7 @@ public class GuiUtils {
     public String formatDateTimeAndZone(DateTime date) {
         return formatDate(date, "MM-dd-yyyy HH:mm:ss z");
     }
-    
+
     public String formatDate(DateTime date, String format) {
         DateTimeFormatter f = DateTimeFormat.forPattern(format);
         return f.print(date);
@@ -203,26 +201,26 @@ public class GuiUtils {
     }
 
     public Integer add(Integer n, Integer m) {
-    	return n + m;
+        return n + m;
     }
-    
+
     public Integer sub(Integer n, Integer m) {
-    	return n - m;
+        return n - m;
     }
-    
+
     public Integer div(Integer n, Integer m) {
-    	return n / m;
+        return n / m;
     }
-    
+
     public Integer mul(Integer n, Integer m) {
-    	return n * m;
+        return n * m;
     }
-    
+
     public Integer mod(Integer n, Integer m) {
-    	return n % m;
+        return n % m;
     }
-    
+
     public Integer max(Integer n, Integer m) {
-    	return Math.max(n, m);
+        return Math.max(n, m);
     }
 }

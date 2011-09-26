@@ -35,7 +35,7 @@ public class DoNothingJob extends AbstractJob {
     }
 
     public void run() {
-    // does nothing, just a placeholder for dependencies
+        // does nothing, just a placeholder for dependencies
     }
 
     @Override

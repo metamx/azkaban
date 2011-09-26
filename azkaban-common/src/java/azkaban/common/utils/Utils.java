@@ -413,8 +413,8 @@ public class Utils {
      * Read in content of a file and get the last *lineCount* lines. It is
      * equivalent to *tail* command
      * 
-     * @param filename           input file name
-     * @param lineCount          desired number of tailing lines
+     * @param filename input file name
+     * @param lineCount desired number of tailing lines
      * @return vector of the last *lineCount* lines
      */
     public static Vector<String> tail(String filename, int lineCount) {
@@ -466,11 +466,12 @@ public class Utils {
                 }
             }
 
-            // there might be lineCount + 1 lines and the first line (now it is the last line)
+            // there might be lineCount + 1 lines and the first line (now it is
+            // the last line)
             // might not be complete
-            for (int index= lineCount; index < lastNLines.size(); index++)
+            for(int index = lineCount; index < lastNLines.size(); index++)
                 lastNLines.removeElementAt(index);
-            
+
             // reverse the order of elements in lastNLines
             Collections.reverse(lastNLines);
             return lastNLines;
@@ -484,11 +485,10 @@ public class Utils {
      * Parse lines in byteArray and store the last *lineCount* lines in
      * *lastNLines*
      * 
-     * @param byteArray                 source byte array
-     * @param lineCount                   desired number of lines
-     * @param lastNLines                vector of last N lines
-     * @return true     indicates we get *lineCount* lines 
-     *                false     otherwise
+     * @param byteArray source byte array
+     * @param lineCount desired number of lines
+     * @param lastNLines vector of last N lines
+     * @return true indicates we get *lineCount* lines false otherwise
      */
 
     protected static boolean parseLinesFromLast(byte[] byteArray,
@@ -501,13 +501,12 @@ public class Utils {
      * Parse lines in byteArray and store the last *lineCount* lines in
      * *lastNLines*
      * 
-     * @param byteArray         source byte array
-     * @param offset                offset of the byte array
-     * @param length                length of the byte array
-     * @param lineCount             desired number of lines
-     * @param lastNLines        vector of last N lines
-     * @return true         indicates we get *lineCount* lines 
-     *                false         otherwise
+     * @param byteArray source byte array
+     * @param offset offset of the byte array
+     * @param length length of the byte array
+     * @param lineCount desired number of lines
+     * @param lastNLines vector of last N lines
+     * @return true indicates we get *lineCount* lines false otherwise
      */
     protected static boolean parseLinesFromLast(byte[] byteArray,
                                                 int offset,
@@ -529,19 +528,19 @@ public class Utils {
         String[] tokens = lastNChars.split("\n");
 
         // append lines to lastNLines
-        for (int index=0; index < tokens.length; index++) {
+        for(int index = 0; index < tokens.length; index++) {
             StringBuffer sbLine = new StringBuffer(tokens[index]);
             String newline = sbLine.reverse().toString();
-            
-            if (index == 0 && !lastNLines.isEmpty()) { // first line might not be a complete line
+
+            if(index == 0 && !lastNLines.isEmpty()) { // first line might not be
+                                                      // a complete line
                 int lineNum = lastNLines.size();
                 String halfLine = lastNLines.get(lineNum - 1);
                 lastNLines.set(lineNum - 1, newline + halfLine);
-            }
-            else {
+            } else {
                 lastNLines.add(newline);
             }
-            
+
             if(lastNLines.size() > lineCount) {
                 return true;
             }
