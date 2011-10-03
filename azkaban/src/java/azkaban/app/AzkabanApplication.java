@@ -1,12 +1,12 @@
 /*
  * Copyright 2010 LinkedIn, Inc
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not
  * use this file except in compliance with the License. You may obtain a copy of
  * the License at
- * 
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
  * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
@@ -25,11 +25,18 @@ import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.List;
 import java.util.TimeZone;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
+import azkaban.monitor.consumer.KafkaEmitterConsumer;
+import com.metamx.event.HttpPostEmitter;
+import com.metamx.event.LoggingEmitter;
+import com.metamx.event.ServiceEmitter;
 import org.apache.log4j.Logger;
+import org.apache.log4j.Priority;
 import org.apache.velocity.app.VelocityEngine;
 import org.apache.velocity.runtime.log.Log4JLogChute;
 import org.apache.velocity.runtime.resource.loader.ClasspathResourceLoader;
@@ -83,7 +90,7 @@ public class AzkabanApplication
     private static final Logger logger = Logger.getLogger(AzkabanApplication.class);
     private static final String INSTANCE_NAME = "instance.name";
     private static final String DEFAULT_TIMEZONE_ID = "default.timezone.id";
-    
+
     private final String _instanceName;
     private final List<File> _jobDirs;
     private final File _logsDir;
@@ -95,14 +102,14 @@ public class AzkabanApplication
     private final String _hdfsUrl;
     private final FlowManager _allFlows;
     private final MonitorImpl _monitor;
-    
+
     private final JobExecutorManager _jobExecutorManager;
     private final ScheduleManager _schedulerManager;
-    
+
     private MBeanServer mbeanServer;
     private ObjectName jobRefresherName;
     private ObjectName jobSchedulerName;
-    
+
     public AzkabanApplication(final List<File> jobDirs, final File logDir, final File tempDir, final boolean enableDevMode) throws IOException {
         this._jobDirs = Utils.nonNull(jobDirs);
         this._logsDir = Utils.nonNull(logDir);
@@ -133,10 +140,10 @@ public class AzkabanApplication
 
         String defaultTimezoneID = defaultProps.getString(DEFAULT_TIMEZONE_ID, null);
         if (defaultTimezoneID != null) {
-        	DateTimeZone.setDefault(DateTimeZone.forID(defaultTimezoneID));
-        	TimeZone.setDefault(TimeZone.getTimeZone(defaultTimezoneID));
+          DateTimeZone.setDefault(DateTimeZone.forID(defaultTimezoneID));
+          TimeZone.setDefault(TimeZone.getTimeZone(defaultTimezoneID));
         }
-        
+
         NamedPermitManager permitManager = getNamedPermitManager(defaultProps);
         JobWrappingFactory factory = new JobWrappingFactory(
                 permitManager,
@@ -168,7 +175,7 @@ public class AzkabanApplication
         String successEmail = defaultProps.getString("job.success.email", null);
         int schedulerThreads = defaultProps.getInt("scheduler.threads", 20);
         _instanceName = defaultProps.getString(INSTANCE_NAME, "");
-        
+
         final File initialJobDir = _jobDirs.get(0);
         File schedule = getScheduleFile(defaultProps, initialJobDir);
         File backup = getBackupFile(defaultProps, initialJobDir);
@@ -189,12 +196,22 @@ public class AzkabanApplication
         FlowExecutionDeserializer flowExecutionDeserializer = new FlowExecutionDeserializer(flowDeserializer);
 
         _monitor = MonitorImpl.getMonitor();
+        KafkaEmitterConsumer consumer = new KafkaEmitterConsumer();
+        KafkaEmitterConsumer.KafkaMonitor monitor = consumer.getMonitor(
+                new ScheduledThreadPoolExecutor(1),
+                new ServiceEmitter("Azkaban", this.getAppInstanceName(), new LoggingEmitter(logger, Priority.INFO))
+        );
+        monitor.start();
+        _monitor.registerGlobalNotification(
+            consumer,
+            MonitorInterface.GlobalNotificationType.ANY_WORKFLOW_CLASS_STATS_CHANGE
+        );
 
         _allFlows = new CachingFlowManager(
                 new RefreshableFlowManager(
                         _jobManager,
                         flowExecutionSerializer,
-                        flowExecutionDeserializer, 
+                        flowExecutionDeserializer,
                         executionsStorageDir,
                         lastExecutionId
                 ),
@@ -203,17 +220,17 @@ public class AzkabanApplication
         _jobManager.setFlowManager(_allFlows);
 
         _jobExecutorManager = new JobExecutorManager(
-				        		_allFlows, 
-				        		_jobManager, 
-				        		_mailer, 
-				        		failureEmail, 
-				        		successEmail,
-				        		schedulerThreads
-				        	);
-        
+                    _allFlows,
+                    _jobManager,
+                    _mailer,
+                    failureEmail,
+                    successEmail,
+                    schedulerThreads
+                  );
+
         this._schedulerManager = new ScheduleManager(_jobExecutorManager, new LocalFileScheduleLoader(schedule, backup));
 
-        /* set predefined log url prefix 
+        /* set predefined log url prefix
         */
         String server_url = defaultProps.getString("server.url", null) ;
         if (server_url != null) {
@@ -225,7 +242,7 @@ public class AzkabanApplication
         }
 
         this._velocityEngine = configureVelocityEngine(enableDevMode);
-        
+
         configureMBeanServer();
     }
 
@@ -257,7 +274,7 @@ public class AzkabanApplication
         engine.setProperty("parser.pool.size", 3);
         return engine;
     }
-    
+
     private void configureMBeanServer() {
         logger.info("Registering MBeans...");
         mbeanServer = ManagementFactory.getPlatformMBeanServer();
@@ -298,11 +315,11 @@ public class AzkabanApplication
     public JobExecutorManager getJobExecutorManager() {
         return _jobExecutorManager;
     }
-    
+
     public ScheduleManager getScheduleManager() {
         return _schedulerManager;
     }
-    
+
     public VelocityEngine getVelocityEngine() {
         return _velocityEngine;
     }
@@ -326,7 +343,7 @@ public class AzkabanApplication
     public String getAppInstanceName() {
         return _instanceName;
     }
-    
+
     public FlowManager getAllFlows()
     {
         return _allFlows;
@@ -337,13 +354,13 @@ public class AzkabanApplication
         final ClassLoader retVal;
 
         String hadoopHome = System.getenv("HADOOP_HOME");
-	String hadoopConfDir = System.getenv("HADOOP_CONF_DIR");
+  String hadoopConfDir = System.getenv("HADOOP_CONF_DIR");
 
         if(hadoopConfDir != null) {
-	  logger.info("Using hadoop config found in " + hadoopConfDir);
-	  retVal = new URLClassLoader(new URL[] { new File(hadoopConfDir).toURI().toURL() },
-				      getClass().getClassLoader());
-	} else if(hadoopHome != null) {
+    logger.info("Using hadoop config found in " + hadoopConfDir);
+    retVal = new URLClassLoader(new URL[] { new File(hadoopConfDir).toURI().toURL() },
+              getClass().getClassLoader());
+  } else if(hadoopHome != null) {
             logger.info("Using hadoop config found in " + hadoopHome);
             retVal = new URLClassLoader(new URL[] { new File(hadoopHome, "conf").toURI().toURL() },
                                         getClass().getClassLoader());
@@ -413,23 +430,23 @@ public class AzkabanApplication
         return lastId;
     }
 
-    
+
     public String getRuntimeProperty(final String name) {
         return _jobExecutorManager.getRuntimeProperty(name);
     }
 
     public void setRuntimeProperty(final String key, final String value) {
-    	_jobExecutorManager.setRuntimeProperty(key, value);
+      _jobExecutorManager.setRuntimeProperty(key, value);
     }
-    
+
     public MonitorInterface getMonitor() {
         return _monitor;
     }
-    
+
     public MonitorInternalInterface getInternalMonitor() {
         return _monitor;
     }
-    
+
     public void reloadJobsFromDisk() {
         getJobManager().updateFlowManager();
     }
