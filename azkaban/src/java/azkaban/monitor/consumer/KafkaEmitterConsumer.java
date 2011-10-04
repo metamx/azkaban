@@ -26,6 +26,8 @@ import java.util.concurrent.ScheduledExecutorService;
 public class KafkaEmitterConsumer implements MonitorListener
 {
   private static final Logger log = Logger.getLogger(KafkaEmitterConsumer.class);
+  private static final String JOB_LIVE_NAME = "job/live";
+  private static final String WORKFLOW_LIVE_NAME = "workflow/live";
 
   //  private final ConcurrentLinkedQueue<NativeGlobalStats> globalStatsQueue = new ConcurrentLinkedQueue<NativeGlobalStats>();
   private final ConcurrentLinkedQueue<NativeWorkflowClassStats> wfStatsQueue = new ConcurrentLinkedQueue<NativeWorkflowClassStats>();
@@ -132,8 +134,8 @@ public class KafkaEmitterConsumer implements MonitorListener
                 jobStates.put(jobName, currStats);
 
                 ServiceMetricEvent.Builder event;
-                if (wfEvents.containsKey(jobName)) {
-                  event = wfEvents.get(jobName);
+                if (jobEvents.containsKey(jobName)) {
+                  event = jobEvents.get(jobName);
                 } else {
                   event = new ServiceMetricEvent.Builder();
                   event.setUser1(jobName);
@@ -145,48 +147,57 @@ public class KafkaEmitterConsumer implements MonitorListener
                 final long currFailed = currStats.getNumTimesJobFailed();
                 final long currStarted = currStats.getNumTimesJobStarted();
                 final long currSuccessful = currStats.getNumTimesJobSuccessful();
+                final long currLogStarted = currStats.getNumLoggingJobStarts();
+                final long currThrottleStarted = currStats.getNumResourceThrottledStart();
+                final long currRetryStarted = currStats.getNumRetryJobStarts();
 
                 final long lastTries = lastStats.getNumJobTries();
                 final long lastCanceled = lastStats.getNumTimesJobCanceled();
                 final long lastFailed = lastStats.getNumTimesJobFailed();
                 final long lastStarted = lastStats.getNumTimesJobStarted();
                 final long lastSuccessful = lastStats.getNumTimesJobSuccessful();
+                final long lastLogStarted = lastStats.getNumLoggingJobStarts();
+                final long lastThrottleStarted = lastStats.getNumResourceThrottledStart();
+                final long lastRetryStarted = lastStats.getNumRetryJobStarts();
 
                 List<String> states = Lists.newArrayList((event.getUser2() != null) ? event.getUser2() : new String[0]);
                 // This is a simple state machine
                 if (currTries != lastTries) {
                   // The job has been retried, add to recurring events and continue.
-                  if (!states.contains("Retried")) {
-                    states.add("Retried");
+                  if (!states.contains("retried")) {
+                    states.add("retried");
                   }
                   jobEvents.put(jobName, event.setUser2(states.toArray(new String[states.size()])));
                   continue;
-                } else if (currStarted != lastStarted) {
+                } else if (currStarted != lastStarted/*
+                           || currRetryStarted != lastRetryStarted
+                           || currLogStarted != lastLogStarted
+                           || currThrottleStarted != lastThrottleStarted*/) {
                   // New run of this flow, add to recurring events and continue.
-                  jobEvents.put(jobName, event.setUser2("Started"));
+                  jobEvents.put(jobName, event.setUser2("started"));
                   continue;
                 } else if (currCanceled != lastCanceled) {
                   // Job canceled.
-                  states.add("Canceled");
+                  states.add("canceled");
                 } else if (currFailed != lastFailed) {
                   // Job failed.
-                  states.add("Failed");
+                  states.add("failed");
                 } else if (currSuccessful != lastSuccessful) {
                   // Job succeeded.
-                  states.add("Succeeded");
+                  states.add("succeeded");
                 } else {
                   log.warn("Received unhandled event.");
                   continue;
                 }
 
                 event.setUser2(states.toArray(new String[states.size()]));
-                emitter.emit(event.build("Job Live Events", 1));
+                emitter.emit(event.build(JOB_LIVE_NAME, 1));
                 jobEvents.remove(jobName);
               }
 
               // Emit all recurring events.
               for (ServiceMetricEvent.Builder event : jobEvents.values()) {
-                emitter.emit(event.build("Job Live Events", 1));
+                emitter.emit(event.build(JOB_LIVE_NAME, 1));
               }
             }
 
@@ -234,30 +245,30 @@ public class KafkaEmitterConsumer implements MonitorListener
                 // This is a simple state machine
                 if (currScheduled != lastScheduled) {
                   // New scheduled job, emit and continue.
-                  states.add("Scheduled");
+                  states.add("scheduled");
                 } else if (currStarted != lastStarted) {
                   // New run of this flow, add to recurring events and continue.
-                  wfEvents.put(wfName, event.setUser2("Started"));
+                  wfEvents.put(wfName, event.setUser2("started"));
                   continue;
                 } else if (currCanceled != lastCanceled) {
                   // Job canceled.
-                  states.add("Canceled");
+                  states.add("canceled");
                 } else if (currFailed != lastFailed) {
                   // Job failed.
-                  states.add("Failed");
+                  states.add("failed");
                 } else if (currSuccessful != lastSuccessful) {
                   // Job succeeded.
-                  states.add("Succeeded");
+                  states.add("succeeded");
                 }
 
                 event.setUser2(states.toArray(new String[states.size()]));
-                emitter.emit(event.build("Workflow Live Events", 1));
+                emitter.emit(event.build(WORKFLOW_LIVE_NAME, 1));
                 wfEvents.remove(wfName);
               }
 
               // Emit all recurring events.
               for (ServiceMetricEvent.Builder event : wfEvents.values()) {
-                emitter.emit(event.build("Workflow Live Events", 1));
+                emitter.emit(event.build(WORKFLOW_LIVE_NAME, 1));
               }
             }
           }
@@ -268,15 +279,15 @@ public class KafkaEmitterConsumer implements MonitorListener
     {// Prime the job properties.
       List<String> jobTypes = new ArrayList<String>();
       if (currStats.isLoggingJob()) {
-        jobTypes.add("Logging");
+        jobTypes.add("logging");
       }
 
       if (currStats.isResourceThrottledJob()) {
-        jobTypes.add("Throttled");
+        jobTypes.add("throttled");
       }
 
       if (currStats.isRetryJob()) {
-        jobTypes.add("Retry");
+        jobTypes.add("retry");
       }
 
       event.setUser3(jobTypes.toArray(new String[jobTypes.size()]));

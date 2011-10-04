@@ -17,31 +17,6 @@
 package azkaban.app;
 
 
-import java.io.File;
-import java.io.IOException;
-import java.lang.management.ManagementFactory;
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.net.URLClassLoader;
-import java.util.List;
-import java.util.TimeZone;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-
-import javax.management.MBeanServer;
-import javax.management.ObjectName;
-
-import azkaban.monitor.consumer.KafkaEmitterConsumer;
-import com.metamx.event.HttpPostEmitter;
-import com.metamx.event.LoggingEmitter;
-import com.metamx.event.ServiceEmitter;
-import org.apache.log4j.Logger;
-import org.apache.log4j.Priority;
-import org.apache.velocity.app.VelocityEngine;
-import org.apache.velocity.runtime.log.Log4JLogChute;
-import org.apache.velocity.runtime.resource.loader.ClasspathResourceLoader;
-import org.joda.time.DateTimeZone;
-
 import azkaban.app.jmx.JobScheduler;
 import azkaban.app.jmx.RefreshJobs;
 import azkaban.common.jobs.Job;
@@ -52,19 +27,12 @@ import azkaban.flow.FlowManager;
 import azkaban.flow.RefreshableFlowManager;
 import azkaban.jobcontrol.impl.jobs.locks.NamedPermitManager;
 import azkaban.jobcontrol.impl.jobs.locks.ReadWriteLockManager;
-
 import azkaban.jobs.JobExecutorManager;
-import azkaban.jobs.builtin.JavaJob;
-import azkaban.jobs.builtin.JavaProcessJob;
-import azkaban.jobs.builtin.NoopJob;
-import azkaban.jobs.builtin.PigProcessJob;
-import azkaban.jobs.builtin.ProcessJob;
-import azkaban.jobs.builtin.PythonJob;
-import azkaban.jobs.builtin.RubyJob;
-import azkaban.jobs.builtin.ScriptJob;
+import azkaban.jobs.builtin.*;
 import azkaban.monitor.MonitorImpl;
 import azkaban.monitor.MonitorInterface;
 import azkaban.monitor.MonitorInternalInterface;
+import azkaban.monitor.consumer.KafkaEmitterConsumer;
 import azkaban.scheduler.LocalFileScheduleLoader;
 import azkaban.scheduler.ScheduleManager;
 import azkaban.serialization.DefaultExecutableFlowSerializer;
@@ -74,6 +42,29 @@ import azkaban.serialization.de.DefaultExecutableFlowDeserializer;
 import azkaban.serialization.de.ExecutableFlowDeserializer;
 import azkaban.serialization.de.FlowExecutionDeserializer;
 import com.google.common.collect.ImmutableMap;
+import com.metamx.event.EmitterConfig;
+import com.metamx.event.HttpPostEmitter;
+import com.metamx.event.ServiceEmitter;
+import com.metamx.http.client.HttpClient;
+import org.apache.log4j.Logger;
+import org.apache.velocity.app.VelocityEngine;
+import org.apache.velocity.runtime.log.Log4JLogChute;
+import org.apache.velocity.runtime.resource.loader.ClasspathResourceLoader;
+import org.jboss.netty.bootstrap.ClientBootstrap;
+import org.joda.time.DateTimeZone;
+
+import javax.management.MBeanServer;
+import javax.management.ObjectName;
+import java.io.File;
+import java.io.IOException;
+import java.lang.management.ManagementFactory;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.net.URLClassLoader;
+import java.util.List;
+import java.util.TimeZone;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 /**
  * Master application that runs everything
@@ -90,6 +81,9 @@ public class AzkabanApplication
     private static final Logger logger = Logger.getLogger(AzkabanApplication.class);
     private static final String INSTANCE_NAME = "instance.name";
     private static final String DEFAULT_TIMEZONE_ID = "default.timezone.id";
+    private static final int FLUSH_MILLIS = 15000;
+    private static final int FLUSH_COUNT = 100;
+    private static final String KAFKA_HOST = "http://in.metamx.com/";
 
     private final String _instanceName;
     private final List<File> _jobDirs;
@@ -195,11 +189,20 @@ public class AzkabanApplication
         FlowExecutionSerializer flowExecutionSerializer = new FlowExecutionSerializer(flowSerializer);
         FlowExecutionDeserializer flowExecutionDeserializer = new FlowExecutionDeserializer(flowDeserializer);
 
+
+        /**** Added for monitoring **********************************************/
         _monitor = MonitorImpl.getMonitor();
         KafkaEmitterConsumer consumer = new KafkaEmitterConsumer();
+
+        ClientBootstrap bootstrap = HttpClient.createDefaultBootstrap();
+        HttpClient httpClient = HttpClient.createDefaultInstance(1, bootstrap);
+        ConcurrentHashMap<String, String> urlMap = new ConcurrentHashMap<String, String>();
+        urlMap.put("metrics", KAFKA_HOST);
+        EmitterConfig emitterConfig = new EmitterConfig(FLUSH_MILLIS, FLUSH_COUNT, urlMap);
+
         KafkaEmitterConsumer.KafkaMonitor monitor = consumer.getMonitor(
                 new ScheduledThreadPoolExecutor(1),
-                new ServiceEmitter("Azkaban", this.getAppInstanceName(), new LoggingEmitter(logger, Priority.INFO))
+                new ServiceEmitter("azkaban/" + this.getAppInstanceName(), "N/A", new HttpPostEmitter(emitterConfig, httpClient))
         );
         monitor.start();
         _monitor.registerGlobalNotification(
@@ -211,6 +214,8 @@ public class AzkabanApplication
             consumer,
             MonitorInterface.GlobalNotificationType.ANY_JOB_CLASS_STATS_CHANGE
         );
+        /**** End addition for monitoring ***************************************/
+
 
         _allFlows = new CachingFlowManager(
                 new RefreshableFlowManager(
