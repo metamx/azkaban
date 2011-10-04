@@ -12,6 +12,8 @@ import com.metamx.event.ServiceMetricEvent;
 import org.apache.log4j.Logger;
 import org.joda.time.Duration;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.Callable;
@@ -42,10 +44,8 @@ public class KafkaEmitterConsumer implements MonitorListener
         onWorkflowNotify((NativeWorkflowClassStats) statsObject);
         break;
       case ANY_JOB_CLASS_STATS_CHANGE:
-//        onJobNotify((NativeJobClassStats) statsObject);
-
-        log.error("Attempted to log job stats.");
-        throw new UnsupportedOperationException("Job stats not supported.");
+        onJobNotify((NativeJobClassStats) statsObject);
+        break;
     }
   }
 
@@ -82,7 +82,6 @@ public class KafkaEmitterConsumer implements MonitorListener
     {
       this.exec = exec;
       this.emitter = emitter;
-      this.emitter.start();
     }
 
     public synchronized void start()
@@ -92,6 +91,8 @@ public class KafkaEmitterConsumer implements MonitorListener
       }
       started = true;
 
+      emitter.start();
+
       ScheduledExecutors.scheduleAtFixedRate(
           exec,
           Duration.standardMinutes(1),
@@ -100,12 +101,93 @@ public class KafkaEmitterConsumer implements MonitorListener
             private final HashMap<String, NativeWorkflowClassStats> wfStates = new HashMap<String, NativeWorkflowClassStats>();
             private final HashMap<String, ServiceMetricEvent.Builder> wfEvents = new HashMap<String, ServiceMetricEvent.Builder>();
 
+            private final HashMap<String, NativeJobClassStats> jobStates = new HashMap<String, NativeJobClassStats>();
+            private final HashMap<String, ServiceMetricEvent.Builder> jobEvents = new HashMap<String, ServiceMetricEvent.Builder>();
+
             public ScheduledExecutors.Signal call() throws Exception
             {
               processWorkflowEvents();
+              processJobEvents();
 
               // Repeat forever.
               return ScheduledExecutors.Signal.REPEAT;
+            }
+
+            private void processJobEvents()
+            {
+              final int jobCount = jobStatsQueue.size();
+
+              for (int i = 0; i < jobCount; i++) {
+                final NativeJobClassStats currStats = jobStatsQueue.poll();
+                final String jobName = currStats.getJobClassName();
+
+                NativeJobClassStats lastStats;
+                if (jobStates.containsKey(jobName)) {
+                  lastStats = jobStates.get(jobName);
+                } else {
+                  // We're assuming that any new workflow event is the first ever since Azk has started.
+                  // We can't fake it because there are no setters for any ClassStats objects.
+                  lastStats = new NativeJobClassStats();
+                }
+                jobStates.put(jobName, currStats);
+
+                ServiceMetricEvent.Builder event;
+                if (wfEvents.containsKey(jobName)) {
+                  event = wfEvents.get(jobName);
+                } else {
+                  event = new ServiceMetricEvent.Builder();
+                  event.setUser1(jobName);
+                  setJobProperties(currStats, event);
+                }
+
+                final long currTries = currStats.getNumJobTries();
+                final long currCanceled = currStats.getNumTimesJobCanceled();
+                final long currFailed = currStats.getNumTimesJobFailed();
+                final long currStarted = currStats.getNumTimesJobStarted();
+                final long currSuccessful = currStats.getNumTimesJobSuccessful();
+
+                final long lastTries = lastStats.getNumJobTries();
+                final long lastCanceled = lastStats.getNumTimesJobCanceled();
+                final long lastFailed = lastStats.getNumTimesJobFailed();
+                final long lastStarted = lastStats.getNumTimesJobStarted();
+                final long lastSuccessful = lastStats.getNumTimesJobSuccessful();
+
+                List<String> states = Lists.newArrayList((event.getUser2() != null) ? event.getUser2() : new String[0]);
+                // This is a simple state machine
+                if (currTries != lastTries) {
+                  // The job has been retried, add to recurring events and continue.
+                  if (!states.contains("Retried")) {
+                    states.add("Retried");
+                  }
+                  jobEvents.put(jobName, event.setUser2(states.toArray(new String[states.size()])));
+                  continue;
+                } else if (currStarted != lastStarted) {
+                  // New run of this flow, add to recurring events and continue.
+                  jobEvents.put(jobName, event.setUser2("Started"));
+                  continue;
+                } else if (currCanceled != lastCanceled) {
+                  // Job canceled.
+                  states.add("Canceled");
+                } else if (currFailed != lastFailed) {
+                  // Job failed.
+                  states.add("Failed");
+                } else if (currSuccessful != lastSuccessful) {
+                  // Job succeeded.
+                  states.add("Succeeded");
+                } else {
+                  log.warn("Received unhandled event.");
+                  continue;
+                }
+
+                event.setUser2(states.toArray(new String[states.size()]));
+                emitter.emit(event.build("Job Live Events", 1));
+                jobEvents.remove(jobName);
+              }
+
+              // Emit all recurring events.
+              for (ServiceMetricEvent.Builder event : jobEvents.values()) {
+                emitter.emit(event.build("Job Live Events", 1));
+              }
             }
 
             private void processWorkflowEvents()
@@ -116,21 +198,22 @@ public class KafkaEmitterConsumer implements MonitorListener
                 final NativeWorkflowClassStats currStats = wfStatsQueue.poll();
                 final String wfName = currStats.getWorkflowRootName();
 
-                final long currScheduled = currStats.getNumTimesWorkflowScheduled();
-                final long currStarted = currStats.getNumTimesWorkflowStarted();
-                final long currCanceled = currStats.getNumTimesWorkflowCanceled();
-                final long currFailed = currStats.getNumTimesWorkflowFailed();
-                final long currSuccessful = currStats.getNumTimesWorkflowSuccessful();
 
                 NativeWorkflowClassStats lastStats;
                 if (wfStates.containsKey(wfName)) {
                   lastStats = wfStates.get(wfName);
                 } else {
                   // We're assuming that any new workflow event is the first ever since Azk has started.
-                  // This is primarily caused by there being no setters for any ClassStats objects.
+                  // We can't fake it because there are no setters for any ClassStats objects.
                   lastStats = new NativeWorkflowClassStats();
                 }
                 wfStates.put(wfName, currStats);
+
+                final long currScheduled = currStats.getNumTimesWorkflowScheduled();
+                final long currStarted = currStats.getNumTimesWorkflowStarted();
+                final long currCanceled = currStats.getNumTimesWorkflowCanceled();
+                final long currFailed = currStats.getNumTimesWorkflowFailed();
+                final long currSuccessful = currStats.getNumTimesWorkflowSuccessful();
 
                 final long lastScheduled = lastStats.getNumTimesWorkflowScheduled();
                 final long lastStarted = lastStats.getNumTimesWorkflowStarted();
@@ -168,17 +251,35 @@ public class KafkaEmitterConsumer implements MonitorListener
                 }
 
                 event.setUser2(states.toArray(new String[states.size()]));
-                emitter.emit(event.build("Live Events", 1));
+                emitter.emit(event.build("Workflow Live Events", 1));
                 wfEvents.remove(wfName);
               }
 
               // Emit all recurring events.
               for (ServiceMetricEvent.Builder event : wfEvents.values()) {
-                emitter.emit(event.build("Live Events", 1));
+                emitter.emit(event.build("Workflow Live Events", 1));
               }
             }
           }
       );
+    }
+
+    private void setJobProperties(NativeJobClassStats currStats, ServiceMetricEvent.Builder event)
+    {// Prime the job properties.
+      List<String> jobTypes = new ArrayList<String>();
+      if (currStats.isLoggingJob()) {
+        jobTypes.add("Logging");
+      }
+
+      if (currStats.isResourceThrottledJob()) {
+        jobTypes.add("Throttled");
+      }
+
+      if (currStats.isRetryJob()) {
+        jobTypes.add("Retry");
+      }
+
+      event.setUser3(jobTypes.toArray(new String[jobTypes.size()]));
     }
 
     public synchronized void stop()
@@ -188,6 +289,13 @@ public class KafkaEmitterConsumer implements MonitorListener
       }
 
       exec.shutdown();
+
+      try {
+        emitter.close();
+      }
+      catch (IOException e) {
+        throw new RuntimeException(e);
+      }
 
       started = false;
     }

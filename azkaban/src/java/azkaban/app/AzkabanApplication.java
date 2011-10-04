@@ -151,14 +151,14 @@ public class AzkabanApplication
                 _logsDir.getAbsolutePath(),
                 "java",
                 new ImmutableMap.Builder<String, Class<? extends Job>>()
-                 .put("java", JavaJob.class)
-                 .put("command", ProcessJob.class)
-                 .put("javaprocess", JavaProcessJob.class)
-                 .put("pig", PigProcessJob.class)
-                 .put("propertyPusher", NoopJob.class)
-                 .put("python", PythonJob.class)
-                 .put("ruby", RubyJob.class)
-                 .put("script", ScriptJob.class).build());
+                                .put("java", JavaJob.class)
+                                .put("command", ProcessJob.class)
+                                .put("javaprocess", JavaProcessJob.class)
+                                .put("pig", PigProcessJob.class)
+                                .put("propertyPusher", NoopJob.class)
+                                .put("python", PythonJob.class)
+                                .put("ruby", RubyJob.class)
+                                .put("script", ScriptJob.class).build());
 
         _hdfsUrl = defaultProps.getString("hdfs.instance.url", null);
         _jobManager = new JobManager(factory,
@@ -205,6 +205,11 @@ public class AzkabanApplication
         _monitor.registerGlobalNotification(
             consumer,
             MonitorInterface.GlobalNotificationType.ANY_WORKFLOW_CLASS_STATS_CHANGE
+        );
+
+        _monitor.registerGlobalNotification(
+            consumer,
+            MonitorInterface.GlobalNotificationType.ANY_JOB_CLASS_STATS_CHANGE
         );
 
         _allFlows = new CachingFlowManager(
